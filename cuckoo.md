@@ -10,7 +10,7 @@
 >
 #### 宿主机配置
 
-> > > **主机依赖库**
+> **主机依赖库**
 > ``` bash
 > apt-get update
 > apt-get install -y python python-pip python-dev libffi-dev libssl-dev
@@ -28,7 +28,7 @@
 > setcap cap_net_raw,cap_net_admin=eip /usr/sbin/tcpdump
 > ```
 
-> > > **python 依赖**
+>  **python 依赖**
 >
 > ```bash
 > #特征扫描
@@ -51,22 +51,22 @@
 > ```
 
 #### 虚拟环境配置
->
->```bash
->#创建独立用户，给cuckoo和virtualbox
->adduser cuckoo
->usermod -a -G vboxusers cuckoo
->```
->
->```bash
->#cuckoo环境配置
->cd /opt
->virtualenv pyenv
->. pyenv/bin/activate
->(pyenv)$ pip install -U pip setuptools
->(pyenv)$ pip install -U cuckoo
->(pyenv)$ cuckoo -d
->```
+
+```bash
+#创建独立用户，给cuckoo和virtualbox
+adduser cuckoo
+usermod -a -G vboxusers cuckoo
+```
+
+```bash
+#cuckoo环境配置
+cd /opt
+virtualenv pyenv
+. pyenv/bin/activate
+(pyenv)$ pip install -U pip setuptools
+(pyenv)$ pip install -U cuckoo
+(pyenv)$ cuckoo -d
+```
 
 ```bash
 #建议虚拟机安装时，用GUI界面，命令行吃不消...
