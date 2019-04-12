@@ -7,48 +7,48 @@
 #### 初始环境准备
 
 > 系统版本：Ubuntu 18.4  Python：2.7 
->
+
 #### 宿主机配置
 
-> **主机依赖库**
-> ``` bash
-> apt-get update
-> apt-get install -y python python-pip python-dev libffi-dev libssl-dev
-> apt-get install -y python-virtualenv python-setuptools
-> apt-get install -y libjpeg-dev zlib1g-dev swig
-> # 如果使用web交互界面，需要安装mongodb，ubuntu 12.04安装mongodb有问题，不能简单安装，需要参考官网文档进行安装 （可以不安装）
-> #apt-get install -y mongodb
-> # 默认使用sqlite3，推荐使用PostgreSQL，需要配置（可以不安装）
-> #apt-get install -y postgresql libpq-dev
-> apt-get install -y volatility
-> apt-get install -y swig
-> #Tcpdump
-> apt-get install -y tcpdump apparmor-utils libcap2-bin
-> aa-disable /usr/sbin/tcpdump
-> setcap cap_net_raw,cap_net_admin=eip /usr/sbin/tcpdump
-> ```
+ **主机依赖库**
+ ``` bash
+ apt-get update
+ apt-get install -y python python-pip python-dev libffi-dev libssl-dev
+ apt-get install -y python-virtualenv python-setuptools
+ apt-get install -y libjpeg-dev zlib1g-dev swig
+ # 如果使用web交互界面，需要安装mongodb，ubuntu 12.04安装mongodb有问题，不能简单安装，需要参考官网文档进行安装 （可以不安装）
+ #apt-get install -y mongodb
+ # 默认使用sqlite3，推荐使用PostgreSQL，需要配置（可以不安装）
+ #apt-get install -y postgresql libpq-dev
+ apt-get install -y volatility
+ apt-get install -y swig
+ #Tcpdump
+ apt-get install -y tcpdump apparmor-utils libcap2-bin
+ aa-disable /usr/sbin/tcpdump
+ setcap cap_net_raw,cap_net_admin=eip /usr/sbin/tcpdump
+ ```
 
->  **python 依赖**
->
-> ```bash
-> #特征扫描
-> pip install yara-python==3.5.0
-> #cuckoo 独立python env环境
-> pip install virtualenv
-> 
-> #测试，能导入，不报错就可以了
-> python
-> import yara
-> ```
->
-> **virtualbox**
->
-> ```bash
-> # virtualbox: http://download.virtualbox.org/virtualbox (我下载的6.0.0)
-> dpkg -i virtualbox-xxxxxx.deb
-> #上边如果出错的话，先apt-get remove virtualbox-6.0
-> apt-get install virtualbox-6.0
-> ```
+  **python 依赖**
+
+ ```bash
+ #特征扫描
+ pip install yara-python==3.5.0
+ #cuckoo 独立python env环境
+ pip install virtualenv
+ 
+ #测试，能导入，不报错就可以了
+ python
+ import yara
+ ```
+
+ **virtualbox**
+
+ ```bash
+ # virtualbox: http://download.virtualbox.org/virtualbox (我下载的6.0.0)
+ dpkg -i virtualbox-xxxxxx.deb
+ #上边如果出错的话，先apt-get remove virtualbox-6.0
+ apt-get install virtualbox-6.0
+ ```
 
 #### 虚拟环境配置
 
