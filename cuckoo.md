@@ -6,7 +6,7 @@
 
 #### 初始环境准备
 
-> 系统版本：Ubuntu 18.4  Python：2.7 
+> 系统版本：Ubuntu 18.4  Python：2.7  virtualbox 6.0.0
 
 #### 宿主机配置
 
