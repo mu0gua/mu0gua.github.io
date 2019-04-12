@@ -56,6 +56,8 @@
 #创建独立用户，给cuckoo和virtualbox
 adduser cuckoo
 usermod -a -G vboxusers cuckoo
+#之后的操作就用cuckoo
+su cuckoo
 ```
 
 ```bash
