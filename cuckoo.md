@@ -56,8 +56,6 @@
 #创建独立用户，给cuckoo和virtualbox
 adduser cuckoo
 usermod -a -G vboxusers cuckoo
-#之后的操作就用cuckoo
-su cuckoo
 ```
 
 ```bash
@@ -201,8 +199,3 @@ http://www.fualan.com/article/31/
 <http://www.oldapps.com/> 
 
 #### 
-
-
-
-
-# 转载请注明来源于：github.com/mu0gua
