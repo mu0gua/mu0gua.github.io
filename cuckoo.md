@@ -190,7 +190,7 @@ process_results = off
 
 http://www.fualan.com/article/31/
 
-史上最强说明（有能力就按照官方文档走吧）：
+骚年来看官方文档：
 
 <https://cuckoo.sh/docs/installation/index.html>
 
