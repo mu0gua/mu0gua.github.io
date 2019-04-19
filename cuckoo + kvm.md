@@ -51,6 +51,7 @@ qemu-img create -f qcow2 /data/vm/win7x64.qcow2 20G
 #网络配置创建
 virsh net-define /etc/libvirt/qemu/networks/default.xml #添加网络配置
 virsh net-start default # 启动网络配置
+virsh net-autostart default # 自启动，否则重启后就没有了
 virsh net-destroy default  # 删除网络配置
 virsh net-undefine default # 取消网络配置
 service libvirtd restart  # 重新启动kvm网络管理服务
@@ -70,10 +71,20 @@ virsh undefine vm # 删除名称为vm的虚拟机
 virsh autostart vm # 自启动
 virsh autostart --disable vm # 关闭自启动
 
+#以下快照方式只可以关机使用，并且快照不能为cuckoo所工作
 qemu-img snapshot -c #创建快照 快照名 磁盘路径
 qemu-img snapshot -l #显示所有快照  磁盘路径
 qemu-img snapshot -a #恢复到指定快照 快照名 磁盘路径
 qemu-img snapshot -d #删除快照 快照名 磁盘路径
+
+# 创建快照时用以下方式，可开机创建，并且时cuckoo所用的
+virsh snapshot-create-as #创建快照  磁盘路径 快照名 快照说明
+virsh snapshot-list #显示所有快照  虚拟机名称
+virsh snapshot-revert --domain #恢复到指定快照 虚拟机名称 快照名
+virsh snapshot-delete #删除快照 虚拟机名称 快照名 
+virsh snapshot-delete --domain xx --snapshotname xx #删除快照 虚拟机名称 快照名 
+#克隆kvm虚拟机
+virsh clone -o node99 -n node11 -f /mnt/data/vhost/node11.img -m 00:00:00:80:00:11 -m 00:00:00:10:00:11
 
 net-autostart                  自动开始网络
 net-create                     从一个 XML 文件创建一个网络
@@ -119,7 +130,7 @@ sudo virt-install \
 	<address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
 </interface>
 ```
-##### 虚拟机配置
+#### 虚拟机配置
 ```bash
 #虚拟机配置  -- 作.用命令行安装的，起来以后kvm的vnc管理地址是127.0.0.1:5900
 ssh -L 9000:192.168.0.x:9000 cuckoo@192.168.0.x -N
@@ -134,19 +145,23 @@ ssh -L 9000:192.168.0.x:9000 cuckoo@192.168.0.x -N
 
 #关闭 Windows更新
 #关闭 防火墙
+#关闭 UAC
+#关闭软件更新，chrome、java、firefox、office
 
-#配置静态IP 192.168.56.0/24 
+#启用administrator、guest
+net user guest /active:yes
+net user administrator /active:yes
+#设置自动登陆administrator
+
+#配置静态IP 与宿主机vir0br0 ip段一致 我的是192.168.122.0/24 
 
 #配置自动登陆  <USERNAME> <PSSWORD> 填自己的
 #control userpasswords2
 reg add "hklm\software\Microsoft\Windows NT\CurrentVersion\WinLogon" /v DefaultUserName /d <USERNAME> /t REG_SZ /f
-reg add "hklm\software\Microsoft\Windows NT\CurrentVersion\WinLogon" /v DefaultPassword /d <PASSWORD> /t REG_SZ /f
+reg add "hklm\software\Microsoft\Windows NT\CurrentVersion\WinLogon" /v DefaultPassword /d <PSSWORD> /t REG_SZ /f
 reg add "hklm\software\Microsoft\Windows NT\CurrentVersion\WinLogon" /v AutoAdminLogon /d 1 /t REG_SZ /f
 reg add "hklm\system\CurrentControlSet\Control\TerminalServer" /v AllowRemoteRPC /d 0x01 /t REG_DWORD /f
 reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v LocalAccountTokenFilterPolicy /d 0x01 /t REG_DWORD /f
-
-# 开启guest用户
-net user guest /active:yes
 
 # 将/home/cuckoo/.cuckoo/agent/agent.py 拷贝至虚拟机启动项 C:\Documents and Settings\All Users\「开始」菜单\程序\启动\agent.pyw
 # agent.py 改为agent.pyw  据说会无窗口，爱改不改
@@ -193,20 +208,27 @@ vim /home/cuckoo/.cuckoo/conf/cuckoo.conf
 ## 可能会踩到的一些坑
 
 1. 想要通过virsh shutdown关机，***必须在虚拟机中安装acpid acpid-sysvinit，不是宿主机！***
-
 2. 宿主机，如果不是对linux特别了解，不要采用mini版或server无桌面版
-
 3. 虚拟机，软件安装，网络配置，全部搞完了再打快照【ps：本人打了无数个快照，这样不好】
-
 4. cuckoo配置，cuckoo很强大，一般不会出问题，一定要仔细检测配置，出错了大多数都是配置文件有问题
-
 5. 以上所有的宿主机命令，***不要用ROOT用户执行,用sudo命令执行***
+6. ***Cuckoo 配置文件中提到的快照是用virsh snapshot 创建的，不是qemu-img创建的***
 
 ## 参考资料
 
 搭建参考：
 
 <http://www.linux-kvm.org/page/Documents>
+
+后续配置
+
+<https://www.secpulse.com/archives/74909.html>
+
+<https://www.secpulse.com/archives/75180.html>
+
+克隆KVM
+
+<https://blog.csdn.net/yzy1103203312/article/details/81067326>
 
 史上最强说明（有能力就按照官方文档走吧）：
 
