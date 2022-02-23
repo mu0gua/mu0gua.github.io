@@ -1,0 +1,788 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>数据 Conversion</title>
+</head>
+<style type="text/css">
+    /*
+        https://tool.lu/html/
+        https://tool.lu/js/
+    */
+    *{margin:0;padding:0;}html,body{width:100%;height:100%;background-color:aliceblue;}.container-button{display:grid;grid-gap:1px;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));grid-template-rows:repeat(1,minmax(1px,1fr));}.container-button button{background-color:#4CAF50;border:1px solid green;color:white;padding:10px 18px;cursor:pointer;float:left;display:block;border-radius:10px;}.container-button button:not(:last-child){border-bottom:none;}.container-button button:hover{background-color:#3e8e41;}.container-text{display:grid;grid-gap:1px;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));height:90%}
+</style>
+
+<body>
+    <div  class="container-text">
+        <textarea id="inputs" placeholder="基础数据内容" ></textarea>
+        <textarea id="filter" placeholder="输入数据过滤" ></textarea>
+        <textarea id="result" placeholder="数据处理结果" ></textarea>
+    </div>
+    
+    <div class="container-button">
+        <button onclick="doAction('openfile')">打开文件</button>
+        <button onclick="doAction('dataCleaning')">排序|去重</button>
+        <!--<button onclick="doAction('mergeContext')">文本对比</button>-->
+        <button onclick="doAction('mergeSubdomainAndPort')">组合域名与端口</button>
+        <button onclick="doAction('getSensitiveInfo')">敏感信息提取</button>
+        <button onclick="doAction('getNmapResult')">Nmap端口提取</button>
+        <button onclick="doAction('regxTest')">正则测试</button>
+        <button onclick="doAction('getAssets')">资产提取</button>
+        <button onclick="doAction('mergeIpSection')" title="示例(支持B段C段): 192.168.7.*;192.168.*.1;192.168.*.*">IP地址生成</button>
+        <button onclick="doAction('B64EnDeCode')">Base64编码</button>
+        <button onclick="doAction('avDetect')" title="tasklist /svc">杀软识别</button>
+        <button onclick="doAction('systemPatch')" title="systeminfo">Win补丁对比</button>
+        <button onclick="doAction('cleanText')" title="清空内容">清空内容</button>
+        
+        <input type="file" id="File" style="display:none;"/>
+    </div>
+    
+</body>
+
+<script type="text/javascript">
+    var functions = {
+        "openfile": openfile,
+        "getAssets": getAssets,
+        "mergeIpSection": mergeIpSection,
+        "dataCleaning": dataCleaning,
+        "getNmapResult": getNmapResult,
+        "getSensitiveInfo": getSensitiveInfo,
+        "mergeSubdomainAndPort": mergeSubdomainAndPort,
+        "systemPatch": systemPatch,
+        "B64EnDeCode": B64EnDeCode,
+        "avDetect": avDetect,
+        "regxTest": regxTest,
+        "mergeContext": mergeContext,
+        "cleanText": clean
+    };
+    
+    var dom_inputs = document.getElementById("inputs");
+    var dom_filter = document.getElementById("filter");
+    var dom_result = document.getElementById("result");
+    var dom_inputs_unique = unique(dom_inputs.value.split("\n"));
+    var dom_filter_unique = unique(dom_filter.value.split("\n"));
+    var results = [];
+    
+
+    function doAction(action){
+        dom_inputs = document.getElementById("inputs");
+        dom_filter = document.getElementById("filter");
+        dom_result = document.getElementById("result");
+    
+        dom_inputs_unique = unique(dom_inputs.value.split("\n"));
+        dom_filter_unique = unique(dom_filter.value.split("\n"));
+        
+        results = [];
+        
+        o_function = functions[action];
+        o_function();
+        
+        //dom_result.value = "---<" + results.length + ">---\n" + results.join("\n")
+    }
+    
+    function clean(){
+        dom_inputs.value = "";
+        dom_filter.value = "";
+        dom_result.value = "";
+    };
+    
+    function openfile(){
+        fileInput = document.createElement('input');
+        fileInput.type = "file";
+        fileInput.click();
+        fileInput.addEventListener('change', function () {
+            if (!fileInput.value) {
+                console.log('select file not found.');
+                return;
+            }
+            var file = fileInput.files[0];
+            readFile(file);
+        });
+    };
+    
+    if(window.File && window.FileList && window.FileReader && window.Blob) {
+        var drag = document.getElementsByClassName('container-text')[0];
+        drag.addEventListener('drop', dropHandler, false);
+        drag.addEventListener('dragover', dragOverHandler, false);
+    };
+    
+    function dropHandler(e) {
+        e.stopPropagation();
+        e.preventDefault();
+
+        var df = e.dataTransfer;
+        for(var i = 0, len = df.items.length; i < len; i++) {
+            var item = df.items[i];
+            if(item.kind === "file" && item.webkitGetAsEntry().isFile) {
+                var f = item.getAsFile();
+                readFile(f);
+            }
+        }
+    };
+    
+    function dragOverHandler(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        e.dataTransfer.dragEffect = 'copy';
+    };
+    
+    function readFile(file) {
+        const reader = new FileReader();
+        reader.addEventListener('load', (event) => {
+          const result = event.target.result;
+          dom_inputs.value = result;
+        });
+        /*  
+        reader.addEventListener('progress', (event) => {
+          if (event.loaded && event.total) {
+            const percent = (event.loaded / event.total) * 100;
+            //dom_filter.value = dom_filter.value + "\n" + `Progress: ${Math.round(percent)}`
+            console.log(`Progress: ${Math.round(percent)}`);
+          }
+        });
+        */
+        reader.readAsText(file);
+    };
+    
+    function mergeIpSection() {
+        var reg = /\*/g;
+        
+        for (const key in dom_inputs_unique) {
+            var tmp_key = dom_inputs_unique[key];
+            if (tmp_key.match(reg) != null) {
+                var tmp_key_len = tmp_key.match(reg).length;
+                if (tmp_key_len == 1) {
+                    for (var i = 0; i < 256; i++) {
+                        results.push(tmp_key.replace("*", i));
+                    }
+                    tmp_key = tmp_key.replace("*", 0);
+                    console.log("第" + key + "行: (" + dom_inputs_unique[key] + ")识别成功");
+                } else if (tmp_key_len == 2) {
+                    for (var i = 0; i < 256; i++) {
+                        var str2 = tmp_key.replace("*", i);
+                        for (var j = 0; j < 256; j++) {
+                            results.push(str2.replace("*", j));
+                        }
+                    }
+                    console.log("第" + key + "行: (" + dom_inputs_unique[key] + ")识别成功");
+                } else {
+                    alert("不支持A段生成");
+                }
+
+            } else {
+                console.log("第" + key + "行: (" + dom_inputs_unique[key] + ")未识别到 * 号标记");
+            }
+        }
+        dom_result.value = "---<IP Count: " + results.length + ">---\n" + results.join("\n");
+    }
+
+    function mergeSubdomainAndPort() {
+        var port_regx = /\d{1,5}/g;
+        var ip_regx = /((25[0-5])|(2[0-4]d)|(1dd)|([1-9]d)|d)(.((25[0-5])|(2[0-4]d)|(1dd)|([1-9]d)|d)){3}/ig;
+        var domain_regx = /(http[s]?:\/\/)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+.?/ig;
+        
+        if (dom_filter_unique.length == 0 || dom_inputs_unique.length == 0){
+            console.log("input or filter is empty");
+            dom_result.value = "---<Count: " + dom_inputs_unique.length + ">---\n" + dom_inputs_unique.join("\n");
+            return
+        }
+        
+        for (const i in dom_inputs_unique) {
+            for (const j in dom_filter_unique) {
+                if (dom_filter_unique[j].match(port_regx) == false){console.log("not match port"); continue};
+                if (dom_inputs_unique[i].match(ip_regx)){
+                    results.push(dom_inputs_unique[i] + ":" + dom_filter_unique[j]);
+                    continue
+                }
+                if (dom_inputs_unique[i].match()){
+                    dom_inputs_unique[i] = dom_inputs_unique[i].replace(/http[s]?:\/\//i, "");
+                    results.push(dom_inputs_unique[i] + ":" + dom_filter_unique[j]);
+                }
+            }
+        }
+        dom_result.value = "---<Count: " + results.length + ">---\n" + results.join("\n");
+    }
+
+    function getSensitiveInfo() {
+        var regx_leak_keys = {
+            "google_api": "AIza[0-9A-Za-z-_]{35}",
+            "firebase": "AAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}",
+            "google_captcha": "6L[0-9A-Za-z-_]{38}|^6[0-9a-zA-Z_-]{39}$",
+            "google_oauth": "ya29\.[0-9A-Za-z\-_]+",
+            "amazon_aws_access_key_id": "A[SK]IA[0-9A-Z]{16}",
+            "amazon_mws_auth_toke": "amzn\\.mws\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            "amazon_aws_url": "s3\.amazonaws.com[/]+|[a-zA-Z0-9_-]*\.s3\.amazonaws.com",
+            "facebook_access_token": "EAACEdEose0cBA[0-9A-Za-z]+",
+            "authorization_basic": "basic [a-zA-Z0-9=:_\+\/-]{5,100}",
+            "authorization_api": "api[key|_key|\s+]+[a-zA-Z0-9_\-]{5,100}",
+            "mailgun_api_key": "key-[0-9a-zA-Z]{32}",
+            "twilio_api_key": "SK[0-9a-fA-F]{32}",
+            "twilio_account_sid": "AC[a-zA-Z0-9_\-]{32}",
+            "twilio_app_sid": "AP[a-zA-Z0-9_\-]{32}",
+            "paypal_braintree_access_token": "access_token\$production\$[0-9a-z]{16}\$[0-9a-f]{32}",
+            "square_oauth_secret": "sq0csp-[ 0-9A-Za-z\-_]{43}|sq0[a-z]{3}-[0-9A-Za-z\-_]{22,43}",
+            "square_access_token": "sqOatp-[0-9A-Za-z\-_]{22}|EAAA[a-zA-Z0-9]{60}",
+            "stripe_standard_api": "sk_live_[0-9a-zA-Z]{24}",
+            "stripe_restricted_api": "rk_live_[0-9a-zA-Z]{24}",
+            "github_access_token": "[a-zA-Z0-9_-]*:[a-zA-Z0-9_\-]+@github\.com*",
+            "rsa_private_key": "-----BEGIN RSA PRIVATE KEY-----",
+            "ssh_dsa_private_key": "-----BEGIN DSA PRIVATE KEY-----",
+            "ssh_dc_private_key": "-----BEGIN EC PRIVATE KEY-----",
+            "pgp_private_block": "-----BEGIN PGP PRIVATE KEY BLOCK-----",
+            "json_web_token": "ey[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$",
+            "slack_token": "\"api_token\":\"(xox[a-zA-Z]-[a-zA-Z0-9-]+)\"",
+            "SSH_privKey": "([-]+BEGIN [^\s]+ PRIVATE KEY[-]+[\s]*[^-]*[-]+END [^\s]+ PRIVATE KEY[-]+)",
+            "Heroku API KEY": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            "authorization_beare": "bearer [a-zA-Z0-9_\\-\.=:_+\/]{5,100}",
+            "amazon_aws_url2": "([a-zA-Z0-9-\.\_]+\.s3\.amazonaws\.com|s3://[a-zA-Z0-9-\.\_]+|s3-[a-zA-Z0-9-\.\_\/]+|s3.amazonaws.com/[a-zA-Z0-9-\.\_]+|s3.console.aws.amazon.com/s3/buckets/[a-zA-Z0-9-\.\_]+)",
+            "aliyun_oss_url": "[\\w\-.]\.oss.aliyuncs.com",
+            "azure_storage": "http?://[\\w\-\.]\.file.core.windows.net",
+            "access_key": "[Aa](ccess|CCESS)_?[Kk](ey|EY)|[Aa](ccess|CCESS)_?[sS](ecret|ECRET)|[Aa](ccess|CCESS)_?(id|ID|Id)",
+            "slack_webhook": "http?://hooks.slack.com/services/T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8}/[a-zA-Z0-9_]{24}",
+            "twitter_oauth": "[t|T][w|W][i|I][t|T][t|T][e|E][r|R].{0,30}['\"\s][0-9a-zA-Z]{35,44}['\"\s]",
+            "facebook_oauth": "[f|F][a|A][c|C][e|E][b|B][o|O][o|O][k|K].{0,30}['\"\s][0-9a-f]{32}['\"\s]",
+            "heroku_api": "[h|H][e|E][r|R][o|O][k|K][u|U].{0,30}[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}",
+            "mailgun_api": "key-[0-9a-zA-Z]{32}",
+            "mailchamp_api": "[0-9a-f]{32}-us[0-9]{1,2}",
+            "picatic_api": "sk_live_[0-9a-z]{32}",
+            "google_oauth_id": "[0-9(+-[0-9A-Za-z_]{32}.apps.qooqleusercontent.com",
+            "amazon_mws_auth_token": "amzn\.mws\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            "amazonaws_url": "s3\.amazonaws.com[/]+|[a-zA-Z0-9_-]*\.s3\.amazonaws.com"
+        };
+        
+        /*3-4位区号，7-8位直播号码，1－4位分机号*/
+        var regx_user = {
+            "possible_Creds": "(pwd|pass|passwd|password|mima|user|uname|username|name|SECRET_KEY)+[\s:\"\'\t_]+[is]?.*",
+            "keyword_regx": "(config\/api|rememberme=delete|accesskey|accesstoken|api_secret|app_secret)+[\s:\"\'\t_]+[is]?.*",
+            "phone1_regx": "(13[0-9]|14[5|7]|15[0|1|2|3|4|5|6|7|8|9]|18[0|1|2|3|5|6|7|8|9])\d{8}",
+            "phone2_regx": "\d{3}-\d{8}|\d{4}-\d{7}",
+            "MAC_regx": "[A-Fa-f\d]{2}:[A-Fa-f\d]{2}:[A-Fa-f\d]{2}:[A-Fa-f\d]{2}:[A-Fa-f\d]{2}:[A-Fa-f\d]{2}",
+            "email_regx": "\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*",
+            "idcard_regx": "(^\d{17}[\d|X|x]+)|(^\d{15})"
+        };
+
+    
+        for (i in dom_inputs_unique) {
+            content = dom_inputs_unique[i];
+            for (regx_name in regx_leak_keys){
+                regx_obj   = new RegExp(regx_leak_keys[regx_name], "g");
+                regx_match = content.match(regx_obj);
+                if (regx_match){
+                    // list_result.push.apply(list_result, list_text)
+                    results.push(regx_name + ":\t" + content);
+                }
+                
+            }
+            
+            for (regx_name in regx_user){
+                regx_obj   = new RegExp(regx_user[regx_name], "g");
+                regx_match = content.match(regx_obj);
+                if (regx_match){
+                    // list_result.push.apply(list_result, list_text)
+                    results.push(regx_name + ":\t" + content);
+                }
+                
+            }
+            
+        }
+        dom_result.value = "---<Count: " + results.length + ">---\n" + results.join("\n")
+    }
+
+    function getAssets() {
+        var regx_map={
+            "ip_regx": "[1-9]\\d{1,2}\.\\d{1,3}\.\\d{1,3}\.\\d{1,3}",
+            "ip_regx": "(\d+\.\d+\.\d+\.\d+)(-\d+\.\d+\.\d+\.\d+|-\d+|[,|\s]|:\d{1,5}|\/\d{1,2})",
+            "mail_regx": "\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*",
+            "domain0_regx": "(http[s]?:\/\/)?[a-z0-9][-a-z0-9]{0,62}(.[a-z0-9][-a-z0-9]{0,62})+.?",
+            "domain2_regx": "(http[s]?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6})(:\d{1,5})",
+            "domain4_regx": "(http[s]?:\/\/)?(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6})(:\d{1,5})?(\/(\w+\?\w+\=.*)|(\/\??\w+\=.*))",
+            "domain3_regx": "(http[s]?:\/\/)?[a-zA-Z0-9\-\.]*?\.(xin|com|cn|net|com.cn|vip|top|cc|corp|shop|club|wang|xyz|luxe|site|news|pub|fun|online|win|red|loan|ren|mom|net.cn|org|link|biz|bid|help|tech|date|mobi|so|me|tv|co|vc|pw|video|party|pics|website|store|ltd|ink|trade|live|wiki|space|gift|lol|work|band|info|click|photo|market|tel|social|press|game|kim|org.cn|games|pro|men|love|studio|rocks|asia|group|science|design|software|engineer|lawyer|fit|beer|我爱你|中国|公司|网络|在线|网址|网店|集团|中文网)",
+            "phone_regx": "(13[0-9]|14[5|7]|15[^4]|17[6-9]|18[0-9])\\d{8}"
+        };
+        
+        onlyView_ip = []
+        onlyView_mail = []
+        onlyView_phone = []
+        onlyView_domain = []
+        
+        for (i in dom_inputs_unique) {
+            content = dom_inputs_unique[i]
+            for (regx_name in regx_map) {
+                var regx_obj   = new RegExp(regx_map[regx_name], "ig");
+                var regx_match = content.match(regx_obj);
+                // console.log(regx_name, content, regx_obj, regx_match);
+                if (regx_match){
+                    //console.log(regx_name + ":\t" + regx_match);
+                    //results.push(regx_name + ":\t" + regx_match);
+                    results.push.apply(results, regx_match);
+                }
+            }
+            if (content.match(/\d+\.\d+\.\d+\.\d+/gi)) {
+                onlyView_ip.push.apply(onlyView_ip, content.match(/\d+\.\d+\.\d+\.\d+/gi));
+            }
+            
+            if (content.match(/(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6})(:\d{1,5})?/gi)) {
+                onlyView_domain.push.apply(onlyView_domain, content.match(/(([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6})(:\d{1,5})?/gi));
+            }
+            
+            if (content.match(/(13[0-9]|14[5|7]|15[^4]|17[6-9]|18[0-9])\\d{8}/gi)) {
+                onlyView_phone.push.apply(onlyView_phone, content.match(/(13[0-9]|14[5|7]|15[^4]|17[6-9]|18[0-9])\\d{8}/gi));
+            }
+            
+            if (content.match(/\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*/gi)) {
+                onlyView_mail.push.apply(onlyView_mail, content.match(/\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*/gi));
+            }
+        };
+        
+        /*
+        for (i in results) {
+            if (results[i].indexOf("ip_c_regx") !== -1){
+                temp_ipc = results[i].substr(0, results[i].lastIndexOf(".")) + ".0/24";
+                results.push(temp_ipc);
+            }
+        }
+        */
+        
+        results         = unique(results);
+        onlyView_ip     = unique(onlyView_ip);
+        onlyView_domain = unique(onlyView_domain);
+        onlyView_phone  = unique(onlyView_phone);
+        onlyView_mail   = unique(onlyView_mail);
+        
+        out_str = "---<ALL: " + results.length + ">---\n" + results.join("\n");
+        out_str = out_str + "\n\n" + "---<IP: " + onlyView_ip.length + ">---\n" + onlyView_ip.join("\n");
+        out_str = out_str + "\n\n" + "---<Domain: " + onlyView_domain.length + ">---\n" + onlyView_domain.join("\n");
+        out_str = out_str + "\n\n" + "---<Phone: " + onlyView_phone.length + ">---\n" + onlyView_phone.join("\n");
+        out_str = out_str + "\n\n" + "---<Mail: " + onlyView_mail.length + ">---\n" + onlyView_mail.join("\n");
+        
+        dom_result.value = out_str
+    }
+
+
+
+    /*
+        Nmap扫描记录处理
+    */
+    function getNmapResult() {
+        //var reg_ip = /\(((1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|[0-9])\.((1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d)\.){2}(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d))\)/;
+        var reg_ip = /((1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|[0-9])\.((1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d)\.){2}(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d))/;
+        var reg_port = /(\d*)\/tcp/;
+        
+        for (const i in dom_inputs_unique) {
+            var ip, port;
+            let temp = dom_inputs_unique[i];
+            var list_text = temp.match(reg_ip);
+            if (list_text != null) {
+                ip = list_text[1];
+            } else {
+                if (reg_port.test(temp)) {
+                    var list_text = temp.match(reg_port);
+                    port = list_text[1];
+                    if (ip) {
+                        console.log(ip + ":" + port);
+                        results.push(ip + ":" + port);
+                    }
+
+                }
+            }
+        }
+        results = unique(results);
+        dom_result.value = "---<count: " + results.length + ">---\n" + results.join("\n");
+    };
+
+
+    function dataCleaning() {
+        //js 获取两个数组的交集，并集，补集，差集
+        //https://www.cnblogs.com/web-shu/p/13551942.html
+
+        //差集:数组arr1相对于arr2所没有的
+        let diff = dom_inputs_unique.filter(function (val) { return dom_filter_unique.indexOf(val) === -1 });
+        //交集
+        let intersection = dom_inputs_unique.filter(function (val) { return dom_filter_unique.indexOf(val) > -1 });
+
+        dom_inputs.value = dom_inputs_unique.join("\n");
+        dom_filter.value = dom_filter_unique.join("\n");
+        dom_result.value = "---差集<" + diff.length + ">---\n" + diff.join("\n");
+        dom_result.value += "\n\n\n---交集<" + intersection.length + ">---\n" + intersection.join("\n");
+    }
+
+
+    /*
+    @通用
+    @功能: 
+        去空行-->去重-->排序
+    */
+    function unique(arr) {
+        var result = [], hash = {};
+        for (var i = 0, elem; (elem = arr[i]) != null; i++) {
+            // if (typeof elem == "object") {elem = elem.toString()};
+            // console.log(elem);
+            
+            elem = elem.trim();
+            
+            if (elem != "") {
+                if (!hash[elem]) {
+                    result.push(elem);
+                    hash[elem] = true;
+                }
+            }
+        }
+        return result.sort(function (a, b) { return a.localeCompare(b) }); //排序后在输出
+    };
+    
+    /*! base64 */
+    
+    function B64EnDeCode(){
+        var base = new BASE64();
+        
+        var list_encodes = [], list_decodes = [];
+        
+        for (const j in dom_inputs_unique) {
+            list_encodes.push(base.encode(dom_inputs_unique[j]));
+            list_decodes.push(base.decode(dom_inputs_unique[j]));
+        }
+        
+        outstr = "---编码：<" + list_encodes.length + ">---\n" + list_encodes.join("\n");
+        outstr = outstr + "\n\n\n---解码：<" + list_decodes.length + ">---\n" + list_decodes.join("\n");
+        dom_result.value = outstr;
+    };
+    
+    
+    function avDetect(){
+        av_dict={'360tray.exe':'360安全卫士-实时保护','360safe.exe':'360安全卫士-主程序','ZhuDongFangYu.exe':'360安全卫士-主动防御','360sd.exe':'360杀毒','a2guard.exe':'a-squared杀毒','ad-watch.exe':'Lavasoft杀毒','cleaner8.exe':'The Cleaner杀毒','vba32lder.exe':'vb32杀毒','MongoosaGUI.exe':'Mongoosa杀毒','CorantiControlCenter32.exe':'Coranti2012杀毒','F-PROT.exe':'F-Prot AntiVirus','CMCTrayIcon.exe':'CMC杀毒','K7TSecurity.exe':'K7杀毒','UnThreat.exe':'UnThreat杀毒','CKSoftShiedAntivirus4.exe':'Shield Antivirus杀毒','AVWatchService.exe':'VIRUSfighter杀毒','ArcaTasksService.exe':'ArcaVir杀毒','iptray.exe':'Immunet杀毒','PSafeSysTray.exe':'PSafe杀毒','nspupsvc.exe':'nProtect杀毒','SpywareTerminatorShield.exe':'SpywareTerminator反间谍软件','BKavService.exe':'Bkav杀毒','MsMpEng.exe':'Windows Defender','SBAMSvc.exe':'VIPRE','ccSvcHst.exe':'Norton杀毒','f-secure.exe':'冰岛','avp.exe':'Kaspersky','KvMonXP.exe':'江民杀毒','RavMonD.exe':'瑞星杀毒','Mcshield.exe':'McAfee','Tbmon.exe':'McAfee','Frameworkservice.exe':'McAfee','egui.exe':'ESET NOD32','ekrn.exe':'ESET NOD32','eguiProxy.exe':'ESET NOD32','kxetray.exe':'金山毒霸','knsdtray.exe':'可牛杀毒','TMBMSRV.exe':'趋势杀毒','avcenter.exe':'Avira(小红伞)','avguard.exe':'Avira(小红伞)','avgnt.exe':'Avira(小红伞)','sched.exe':'Avira(小红伞)','ashDisp.exe':'Avast网络安全','rtvscan.exe':'诺顿杀毒','ccapp.exe':'SymantecNorton','NPFMntor.exe':'Norton杀毒软件','ccSetMgr.exe':'赛门铁克','ccRegVfy.exe':'Norton杀毒软件','ksafe.exe':'金山卫士','QQPCRTP.exe':'QQ电脑管家','avgwdsvc.exe':'AVG杀毒','QUHLPSVC.exe':'QUICK HEAL杀毒','mssecess.exe':'微软杀毒','SavProgress.exe':'Sophos杀毒','SophosUI.exe':'Sophos杀毒','SophosFS.exe':'Sophos杀毒','SophosHealth.exe':'Sophos杀毒','SophosSafestore64.exe':'Sophos杀毒','SophosCleanM.exe':'Sophos杀毒','fsavgui.exe':'F-Secure杀毒','vsserv.exe':'比特梵德','remupd.exe':'熊猫卫士','FortiTray.exe':'飞塔','safedog.exe':'安全狗','parmor.exe':'木马克星','Iparmor.exe.exe':'木马克星','beikesan.exe':'贝壳云安全','KSWebShield.exe':'金山网盾','TrojanHunter.exe':'木马猎手','GG.exe':'巨盾网游安全盾','adam.exe':'绿鹰安全精灵','AST.exe':'超级巡警','ananwidget.exe':'墨者安全专家','AVK.exe':'AntiVirusKit','avg.exe':'AVG Anti-Virus','spidernt.exe':'Dr.web','avgaurd.exe':'Avira Antivir','vsmon.exe':'Zone Alarm','cpf.exe':'Comodo','outpost.exe':'Outpost Firewall','rfwmain.exe':'瑞星防火墙','kpfwtray.exe':'金山网镖','FYFireWall.exe':'风云防火墙','MPMon.exe':'微点主动防御','pfw.exe':'天网防火墙','BaiduSdSvc.exe':'百度杀毒-服务进程','BaiduSdTray.exe':'百度杀毒-托盘进程','BaiduSd.exe':'百度杀毒-主程序','SafeDogGuardCenter.exe':'安全狗','safedogupdatecenter.exe':'安全狗','safedogguardcenter.exe':'安全狗','SafeDogSiteIIS.exe':'安全狗','SafeDogTray.exe':'安全狗','SafeDogServerUI.exe':'安全狗','D_Safe_Manage.exe':'D盾','d_manage.exe':'D盾','yunsuo_agent_service.exe':'云锁','yunsuo_agent_daemon.exe':'云锁','HwsPanel.exe':'护卫神','hws_ui.exe':'护卫神','hws.exe':'护卫神','hwsd.exe':'护卫神','HipsTray.exe':'火绒','HipsDaemon.exe':'火绒','wsctrl.exe':'火绒','usysdiag.exe':'火绒','SPHINX.exe':'SPHINX防火墙','bddownloader.exe':'百度卫士','baiduansvx.exe':'百度卫士-主进程','AvastUI.exe':'Avast!5主程序','emet_agent.exe':'EMET','emet_service.exe':'EMET','firesvc.exe':'McAfee','firetray.exe':'McAfee','hipsvc.exe':'McAfee','mfevtps.exe':'McAfee','mcafeefire.exe':'McAfee','scan32.exe':'McAfee','shstat.exe':'McAfee','vstskmgr.exe':'McAfee','engineserver.exe':'McAfee','mfeann.exe':'McAfee','mcscript.exe':'McAfee','updaterui.exe':'McAfee','udaterui.exe':'McAfee','naprdmgr.exe':'McAfee','cleanup.exe':'McAfee','cmdagent.exe':'McAfee','frminst.exe':'McAfee','mcscript_inuse.exe':'McAfee','mctray.exe':'McAfee','_avp32.exe':'卡巴斯基','_avpcc.exe':'卡巴斯基','_avpm.exe':'卡巴斯基','aAvgApi.exe':'AVG','alertsvc.exe':'Norton AntiVirus','alogserv.exe':'McAfee VirusScan','anti-trojan.exe':'Anti-Trojan Elite','arr.exe':'Application Request Route','atguard.exe':'AntiVir','atwatch.exe':'Mustek','au.exe':'NSIS','aupdate.exe':'Symantec','autodown.exe':'AntiVirus AutoUpdater','avconsol.exe':'McAfee','avgcc32.exe':'AVG','avgctrl.exe':'AVG','avgemc.exe':'AVG','avgrsx.exe':'AVG','avgserv.exe':'AVG','avgserv9.exe':'AVG','avgw.exe':'AVG','avkpop.exe':'G DATA SOFTWARE AG','avkserv.exe':'G DATA SOFTWARE AG','avkservice.exe':'G DATA SOFTWARE AG','avkwctl9.exe':'G DATA SOFTWARE AG','avltmain.exe':'Panda Software Aplication','avnt.exe':'H+BEDV Datentechnik GmbH','avp32.exe':'Kaspersky Anti-Virus','avpcc.exe':' Kaspersky AntiVirus','avpdos32.exe':' Kaspersky AntiVirus','avpm.exe':' Kaspersky AntiVirus','avptc32.exe':' Kaspersky AntiVirus','avpupd.exe':' Kaspersky AntiVirus','avsynmgr.exe':'McAfee','avwin.exe':' H+BEDV','bargains.exe':'Exact Advertising SpyWare','beagle.exe':'Avast','blackd.exe':'BlackICE','blackice.exe':'BlackICE','blink.exe':'micromedia','blss.exe':'CBlaster','bootwarn.exe':'Symantec','bpc.exe':'Grokster','brasil.exe':'Exact Advertising','ccevtmgr.exe':'Norton Internet Security','cdp.exe':'CyberLink Corp.','cfd.exe':'Motive Communications','cfgwiz.exe':' Norton AntiVirus','clean.exe':'windows流氓软件清理大师','cleaner.exe':'windows流氓软件清理大师','cleaner3.exe':'windows流氓软件清理大师','cleanpc.exe':'windows流氓软件清理大师','cpd.exe':'McAfee','defalert.exe':'Symantec','defscangui.exe':'Symantec','defwatch.exe':'Norton Antivirus','dpps2.exe':'PanicWare','dssagent.exe':'Broderbund','emsw.exe':'Alset Inc','ethereal.exe':'RationalClearCase','fameh32.exe':'F-Secure','fast.exe':' FastUsr','fch32.exe':'F-Secure','fih32.exe':'F-Secure','findviru.exe':'F-Secure','firewall.exe':'AshampooSoftware','fnrb32.exe':'F-Secure','fp-win.exe':' F-Prot Antivirus OnDemand','fsaa.exe':'F-Secure','fsav.exe':'F-Secure','fsav32.exe':'F-Secure','fsav530stbyb.exe':'F-Secure','fsav530wtbyb.exe':'F-Secure','fsav95.exe':'F-Secure','fsgk32.exe':'F-Secure','fsm32.exe':'F-Secure','fsma32.exe':'F-Secure','fsmb32.exe':'F-Secure','guard.exe':'ewido','guarddog.exe':'ewido','htpatch.exe':'Silicon Integrated Systems Corporation','iamapp.exe':'Symantec','iamserv.exe':'Symantec','iamstats.exe':'Symantec','iedriver.exe':' Urlblaze.com','iface.exe':'Panda Antivirus MSFModule','infus.exe':'Infus Dialer','infwin.exe':'Msviewparasite','intdel.exe':'Inet Delivery','kavpf.exe':'Kapersky','kazza.exe':'Kapersky','keenvalue.exe':'EUNIVERSE INC','launcher.exe':'Intercort Systems','ldscan.exe':'Windows Trojans Inspector','luall.exe':'Symantec','luau.exe':'Symantec','lucomserver.exe':'Norton','mcagent.exe':'McAfee','mcmnhdlr.exe':'McAfee','mctool.exe':'McAfee','mcupdate.exe':'McAfee','mcvsrte.exe':'McAfee','mcvsshld.exe':'McAfee','mfin32.exe':'MyFreeInternetUpdate','mfw2en.exe':'MyFreeInternetUpdate','mfweng3.02d30.exe':'MyFreeInternetUpdate','mgavrtcl.exe':'McAfee','mgavrte.exe':'McAfee','mghtml.exe':'McAfee','mgui.exe':'BullGuard','minilog.exe':'Zone Labs Inc','mmod.exe':'EzulaInc','mostat.exe':'WurldMediaInc','mpfagent.exe':'McAfee','mpfservice.exe':'McAfee','mpftray.exe':'McAfee','mscache.exe':'Integrated Search Technologies Spyware','mscman.exe':'OdysseusMarketingInc','msmgt.exe':'Total Velocity Spyware','msvxd.exe':'W32/Datom-A','nav.exe':'Reuters Limited','navapsvc.exe':'Norton AntiVirus','navapw32.exe':'Norton AntiVirus','navw32.exe':'Norton Antivirus','ndd32.exe':'诺顿磁盘医生','nisserv.exe':'Norton','nisum.exe':'Norton','nmain.exe':'Norton','nod32.exe':'ESET Smart Security','nprotect.exe':'Symantec','npscheck.exe':'Norton','npssvc.exe':'Norton','ntrtscan.exe':'趋势反病毒应用程序','outpostinstall.exe':'Outpost','patch.exe':'趋势科技','pcscan.exe':'趋势科技','persfw.exe':'Tiny Personal Firewall','pgmonitr.exe':'PromulGate SpyWare','pop3trap.exe':'PC-cillin','poproxy.exe':'NortonAntiVirus','powerscan.exe':'Integrated Search Technologies','prizesurfer.exe':'Prizesurfer','prmt.exe':'OpiStat','prmvr.exe':'Adtomi','processmonitor.exe':'Sysinternals','protectx.exe':'ProtectX','qconsole.exe':'Norton AntiVirus Quarantine Console','qserver.exe':'Norton Internet Security','rapapp.exe':'BlackICE','rb32.exe':'RapidBlaster','rcsync.exe':'PrizeSurfer','realmon.exe':'Realmon ','rescue32.exe':'卡巴斯基互联网安全套装','rtvscn95.exe':'Real-time virus scanner ','rulaunch.exe':'McAfee User Interface','run32dll.exe':'PAL PC Spy','safeweb.exe':'PSafe Tecnologia','sbserv.exe':'Norton Antivirus','scrscan.exe':'360杀毒','sfc.exe':'System file checker','sh.exe':'MKS Toolkit for Win3','showbehind.exe':'MicroSmarts Enterprise Component ','soap.exe':'System Soap Pro','supporter5.exe':'eScorcher反病毒','symproxysvc.exe':'Symantec','symtray.exe':'Symantec','tbscan.exe':'ThunderBYTE','tc.exe':'TimeCalende','titanin.exe':'TitanHide','tvmd.exe':'Total Velocity','tvtmd.exe':' Total Velocity','vettray.exe':'eTrust','vpc32.exe':'Symantec','vpc42.exe':'Symantec','vshwin32.exe':'McAfee','vsmain.exe':'McAfee','vsstat.exe':'McAfee','zapro.exe':'Zone Alarm','zonealarm.exe':'Zone Alarm','AVPM.exe':'Kaspersky','A2CMD.exe':'Emsisoft Anti-Malware','A2SERVICE.exe':'a-squared free','A2FREE.exe':'a-squared Free','ADVCHK.exe':'Norton AntiVirus','AGB.exe':'安天防线','AHPROCMONSERVER.exe':'安天防线','AIRDEFENSE.exe':'AirDefense','ALERTSVC.exe':'Norton AntiVirus','AVIRA.exe':'小红伞杀毒','AMON.exe':'Tiny Personal Firewall','AVZ.exe':'AVZ','APVXDWIN.exe':'熊猫卫士','ASHMAISV.exe':'Alwil','ASHSERV.exe':'Avast Anti-virus','ASHSIMPL.exe':'AVAST!VirusCleaner','ASHWEBSV.exe':'Avast','ASWUPDSV.exe':'Avast','ASWSCAN.exe':'Avast','AVCIMAN.exe':'熊猫卫士','AVCONSOL.exe':'McAfee','AVENGINE.exe':'熊猫卫士','AVESVC.exe':'Avira AntiVir Security Service','AVGAM.exe':'AVG','AVGCC.exe':'AVG','AVGCHSVX.exe':'AVG','AVGCSRVX':'AVG','AVGNSX.exe':'AVG','AVGCC32.exe':'AVG','AVGCTRL.exe':'AVG','AVGEMC.exe':'AVG','AVGFWSRV.exe':'AVG','AVGNTMGR.exe':'AVG','AVGSERV.exe':'AVG','AVGTRAY.exe':'AVG','AVGUPSVC.exe':'AVG','AVINITNT.exe':'Command AntiVirus for NT Server','AVPCC.exe':'Kaspersky','AVSERVER.exe':'Kerio MailServer','AVSCHED32.exe':'H+BEDV','AVSYNMGR.exe':'McAfee','AVWUPSRV.exe':'H+BEDV','BDSWITCH.exe':'BitDefender MSFModule','BLACKD.exe':'BlackICE','CCEVTMGR.exe':'Symantec','CFP.exe':'COMODO','CLAMWIN.exe':'ClamWin Portable','CUREIT.exe':'DrWeb CureIT','DEFWATCH.exe':'Norton Antivirus','DRWADINS.exe':'Dr.Web','DRWEB.exe':'Dr.Web','DEFENDERDAEMON.exe':'ShadowDefender','EWIDOCTRL.exe':'Ewido Security Suite','EZANTIVIRUSREGISTRATIONCHECK.exe':'e-Trust Antivirus','FIREWALL.exe':'AshampooSoftware','FPROTTRAY.exe':'F-PROT Antivirus','FPWIN.exe':'Verizon','FRESHCLAM.exe':'ClamAV','FSAV32.exe':'F-Secure','FSBWSYS.exe':'F-secure','FSDFWD.exe':'F-Secure','FSGK32.exe':'F-Secure','FSGK32ST.exe':'F-Secure','FSMA32.exe':'F-Secure','FSMB32.exe':'F-Secure','FSSM32.exe':'F-Secure','GUARDGUI.exe':'网游保镖','GUARDNT.exe':'IKARUS','IAMAPP.exe':'Symantec','INOCIT.exe':'eTrust','INORPC.exe':'eTrust','INORT.exe':'eTrust','INOTASK.exe':'eTrust','INOUPTNG.exe':'eTrust','ISAFE.exe':'eTrust','KAV.exe':'Kaspersky','KAVMM.exe':'Kaspersky','KAVPF.exe':'Kaspersky','KAVPFW.exe':'Kaspersky','KAVSTART.exe':'Kaspersky','KAVSVC.exe':'Kaspersky','KAVSVCUI.exe':'Kaspersky','KMAILMON.exe':'金山毒霸','MCAGENT.exe':'McAfee','MCMNHDLR.exe':'McAfee','MCREGWIZ.exe':'McAfee','MCUPDATE.exe':'McAfee','MCVSSHLD.exe':'McAfee','MINILOG.exe':'Zone Alarm','MYAGTSVC.exe':'McAfee','MYAGTTRY.exe':'McAfee','NAVAPSVC.exe':'Norton','NAVAPW32.exe':'Norton','NAVLU32.exe':'Norton','NAVW32.exe':'Norton Antivirus','NEOWATCHLOG.exe':'NeoWatch','NEOWATCHTRAY.exe':'NeoWatch','NISSERV.exe':'Norton','NISUM.exe':'Norton','NMAIN.exe':'Norton','NOD32.exe':'ESET NOD32','NPFMSG.exe':'Norman个人防火墙','NPROTECT.exe':'Symantec','NSMDTR.exe':'Norton','NTRTSCAN.exe':'趋势科技','OFCPFWSVC.exe':'OfficeScanNT','OP_MON.exe':' OutpostFirewall','PAVFIRES.exe':'熊猫卫士','PAVFNSVR.exe':'熊猫卫士','PAVKRE.exe':'熊猫卫士','PAVPROT.exe':'熊猫卫士','PAVPROXY.exe':'熊猫卫士','PAVPRSRV.exe':'熊猫卫士','PAVSRV51.exe':'熊猫卫士','PAVSS.exe':'熊猫卫士','PCCGUIDE.exe':'PC-cillin','PCCIOMON.exe':'PC-cillin','PCCNTMON.exe':'PC-cillin','PCCPFW.exe':'趋势科技','PCCTLCOM.exe':'趋势科技','PCTAV.exe':'PC Tools AntiVirus','PERSFW.exe':'Tiny Personal Firewall','PESTPATROL.exe':'Ikarus','PREVSRV.exe':'熊猫卫士','RTVSCN95.exe':'Real-time Virus Scanner','SAVADMINSERVICE.exe':'SAV','SAVMAIN.exe':'SAV','SAVSCAN.exe':'SAV','SDHELP.exe':'Spyware Doctor','SHSTAT.exe':'McAfee','SPBBCSVC.exe':'Symantec','SPIDERCPL.exe':'Dr.Web','SPIDERML.exe':'Dr.Web','SPIDERUI.exe':'Dr.Web','SPYBOTSD.exe':'Spybot ','SWAGENT.exe':'SonicWALL','SWDOCTOR.exe':'SonicWALL','SWNETSUP.exe':'Sophos','SYMLCSVC.exe':'Symantec','SYMPROXYSVC.exe':'Symantec','SYMSPORT.exe':'Sysmantec','SYMWSC.exe':'Sysmantec','SYNMGR.exe':'Sysmantec','TMLISTEN.exe':'趋势科技','TMNTSRV.exe':'趋势科技','TMPROXY.exe':'趋势科技','TNBUTIL.exe':'Anti-Virus','VCRMON.exe':'VirusChaser','VRMONNT.exe':'HAURI','VRMONSVC.exe':'HAURI','VSHWIN32.exe':'McAfee','VSSTAT.exe':'McAfee','XCOMMSVR.exe':'BitDefender','ZONEALARM.exe':'Zone Alarm','360rp.exe':'360杀毒','afwServ.exe':' Avast Antivirus ','safeboxTray.exe':'360杀毒','360safebox.exe':'360杀毒','QQPCTray.exe':'QQ电脑管家','KSafeTray.exe':'金山毒霸','KSafeSvc.exe':'金山毒霸','KWatch.exe':'金山毒霸','gov_defence_service.exe':'云锁','gov_defence_daemon.exe':'云锁','smartscreen.exe':'Windows Defender','macompatsvc.exe':'McAfee','mcamnsvc.exe ':'McAfee','masvc.exe':'McAfee','mfemms.exe':'McAfee','mctary.exe':'McAfee','mcshield.exe':'McAfee','mfewc.exe':'McAfee','mfewch.exe':'McAfee','mfefw.exe':'McAfee','mfefire.exe':'McAfee','mfetp.exe':'McAfee','mfecanary.exe':'McAfee','mfeconsole.exe':'McAfee','mfeesp.exe':'McAfee','fcag.exe':'McAfee','fcags.exe':'McAfee','fcagswd.exe':'McAfee','fcagate.exe':'McAfee','vptray.exe':'Norton病毒防火墙-盾牌图标程序','Miner.exe':'流量矿石','AYAgent.exe':'韩国胶囊','patray.exe':'安博士','V3Svc.exe':'安博士V3','S.exe':'在抓鸡','1433.exe':'在扫1433','DUB.exe':'在爆破','ServUDaemon.exe':'发现S-U','hipstray.exe':'火绒','WEBSCANX.exe':'网络病毒克星'};
+
+        var reg = /\w+\.exe/g;
+
+        for (const key in dom_inputs_unique) {
+            var process_name = dom_inputs_unique[key];
+            if (process_name.match(reg) != null) {
+                var matchProcess = process_name.match(reg);
+                if (av_dict[matchProcess]) {
+                    results.push(matchProcess+": "+ av_dict[matchProcess]);
+                }
+            }
+        }
+        dom_result.value = "---<" + results.length + ">---\n" + results.join("\n");
+    };
+    
+    function systemPatch(){
+        exp_comp = {
+            "win7": {
+                "KB4013081": "MS17-017 GDI 调色板对象本地权限提升 Windows 7/8",
+                "KB3143145": "MS16-034 内核驱动程序 2008/7/8/10/2012",
+                "KB3143141": "MS16-032 辅助登录句柄 2008/7/8/10/2012",
+                "KB3036220": "MS15-010 内核驱动程序  (2003/2008/7/8)",
+                "KB3023266": "MS15-001 内核驱动程序  (2008/2012/7/8)",
+                "KB2972621": "MS12-042 服务总线  (2008/2012/win7)",
+                "KB2671387": "MS12-020 RDP  (2003/2008/7/XP)",
+                "KB2305420": "MS10-092 任务计划程序  (2008/7)",
+                "KB971468": " MS10-012 SMB 客户端 Trans2 堆栈溢出  (Windows 7/2008R2)",
+                "KB2160329": "MS10-048 win32k.sys  (XP SP2 & SP3/2003 SP2/Vista SP1 & SP2/2008 Gold & SP2 & R2/Win7)",
+                "KB959454": " MS09-012 Chimichurri  (Vista/win7/2008/Vista)"
+            },
+            "windows10": {
+                "KB3186973": "MS16-111 内核 API Windows 10 10586 (32/64)/8.1"
+            },
+            "windows2000": {
+                "KB957097": " MS08-068 远程代码执行  (2000/XP)",
+                "KB958644": " MS08-067 远程代码执行  (Windows 2000/XP/Server 2003/Vista/Server 2008)",
+                "KB921883": " MS06-040 远程代码执行  (2003/xp/2000)",
+                "KB956803": " MS08-066 AFD.sys  (Windows 2000/XP/Server 2003)"
+            },
+            "windows2003": {
+                "KB3164038": "MS16-075 热土豆 2003/2008/7/8/2012",
+                "KB823980": " MS03-026 RPC接口中的缓冲区溢出 （/ NT / 2000 / XP / 2003）",
+                "KB2989935": "MS14-070 内核驱动程序  (2003)",
+                "KB899588": " MS05-039 PnP 服务  (Win 9X/ME/NT/2000/XP/2003)",
+                "KB941693": " MS08-025 Win32.sys  (XP/2003/2008/Vista)",
+                "KB4013389": "MS10-084",
+                "KB2360937": "MS17-010 windows 7/2008/2003/XP",
+                "KB3011780": "MS14-068 域权限提升  (2003/2008/2012/7/8)",
+                "KB2975684": "MS14-040 AFD 驱动程序  (2003/2008/2012/7/8)",
+                "KB2478960": "MS11-014",
+                "KB2507938": "MS11-056",
+                "KB2914368": "MS14-002 NDProxy  (2003/XP)",
+                "KB2566454": "MS11-062 NDISTAPI  (2003/XP)",
+                "KB2646524": "MS12-003",
+                "KB2645640": "MS12-009",
+                "KB2840221": "MS13-046 dxgkrnl.sys  (Vista/2003/2008/2012/7)",
+                "KB2641653": "MS12-018",
+                "KB2778930": "MS13-005 内核模式驱动程序  (2003/2008/2012/win7/8)",
+                "KB944653": "MS07-067",
+                "KB952004": "MS09-012 PR",
+                "KB971657": "MS09-041",
+                "KB2620712": "MS11-097",
+                "KB2393802": "MS11-011 内核驱动程序  (2003/2008/7/XP/Vista)",
+                "KB942831": "MS08-005",
+                "KB2503665": "MS11-046 AFD.sys  (2003/2008/7/XP)",
+                "KB2592799": "MS11-080 AFD.sys  (2003/XP)",
+                "KB956572": "MS09-012 烤肉",
+                "KB2621440": "MS12-020",
+                "KB977165": " MS10-015 KiTrap0D  (2003/2008/7/XP)",
+                "KB3139914": "MS16-032",
+                "KB3124280": "MS16-016",
+                "KB3134228": "MS16-014",
+                "KB3079904": "MS15-097",
+                "KB3077657": "MS15-077",
+                "KB3045171": "MS15-051",
+                "KB3000061": "MS14-058 Win32k.sys  (2003/2008/2012/7/8)",
+                "KB2829361": "MS13-046",
+                "KB2850851": "MS13-053 EPATHOBJ 0day win32k.sys  (XP/Vista/2003/2008/win 7) 限32位",
+                "KB2707511": "MS12-042 sysret -pid",
+                "KB2124261": "KB2271195 MS10-065 IIS7",
+                "KB970483": " MS09-020 IIS 6.0 （IIS 5.1 和 6.0）"
+            },
+            "windows2008": {
+                "KB3136041": "MS16-016 WebDAV 2008/Vista/7",
+                "KB3139914": "MS16-032",
+                "KB3124280": "MS16-016",
+                "KB3134228": "MS16-014",
+                "KB3079904": "MS15-097",
+                "KB3077657": "MS15-077",
+                "KB975517": " MS09-050 远程代码执行  (2008/Vista)",
+                "KB3045171": "MS15-051",
+                "KB3000061": "MS14-058 Win32k.sys  (2003/2008/2012/7/8)",
+                "KB2829361": "MS13-046",
+                "KB2850851": "MS13-053 win32k.sys  (XP/Vista/2003/2008/win 7) EPATHOBJ 0day 限32位",
+                "KB2707511": "MS12-042 sysret -pid",
+                "KB2124261": "KB2271195 MS10-065 IIS7",
+                "KB970483": " MS09-020 IIS 6.0 （IIS 5.1 和 6.0）",
+                "KB982799": " MS10-059 ACL-Churraskito  (2008/7/Vista)",
+                "KB2267960": "MS10-065 FastCGI （IIS 5.1、6.0、7.0 和 7.5）"
+            },
+            "windows2012": {
+                "KB3089656": "MS15-097 远程代码执行 win8.1/2012",
+                "KB3067505": "MS15-076 RPC  (2003/2008/7/8/2012)",
+                "KB3031432": "MS15-015 内核驱动程序  (Win7/8/8.1/2012/RT/2012 R2/2008 R2)",
+                "KB3057191": "MS15-051 Windows内核模式驱动程序 （2003/2008/7/8/2012）",
+                "KB3057839": "MS15-061 内核驱动程序  (2003/2008/7/8/2012)",
+                "KB2992611": "MS14-066 Windows Schannel 允许远程代码执行  (VistaSP2/7 SP1/8/Windows 8.1/2003 SP2/2008 SP2/2008 R2 SP1/2012/2012 R2/Windows RT/Windows RT 8.1)",
+                "KB3139914": "MS16-032",
+                "KB3124280": "MS16-016",
+                "KB3134228": "MS16-014",
+                "KB3079904": "MS15-097",
+                "KB3077657": "MS15-077",
+                "KB3045171": "MS15-051",
+                "KB3000061": "MS14-058",
+                "KB2829361": "MS13-046",
+                "KB2850851": "MS13-053 EPATHOBJ 0day 限32位",
+                "KB2707511": "MS12-042 sysret -pid",
+                "KB2124261": "KB2271195 MS10-065 IIS7",
+                "KB970483": "MS09-020 IIS6"
+            },
+            "windows2016": {
+                "KB3199135": "MS16-135 Windows 内核模式驱动程序 2016"
+            }
+        };
+
+        
+        var reg = /KB.*/ig;
+
+        for (const line in dom_inputs_unique) {
+            var patchNum = dom_inputs_unique[line];
+            if (patchNum.match(reg) != null) {
+                var matchPatch = patchNum.match(reg);
+                var flag = 0;
+                for (os_version in exp_comp) {
+                    if (exp_comp[os_version][matchPatch]){
+                        results.push(matchPatch+"\t"+ os_version +"\t"+exp_comp[os_version][matchPatch]);
+                    }else{
+                        flag = 1;
+                    }
+                }
+                if (flag = 1 ){
+                    results.push("NOT FOUND\t"+matchPatch);
+                    flag = 0;
+                }
+            }
+        }
+        dom_result.value = "---<" + results.length + ">---\n" + results.join("\n");
+        
+    }
+    
+    function regxTest(){
+        if (dom_filter_unique.length <= 0 ){
+            console.log("regx not found.");
+            return
+        }
+        for (const line in dom_inputs_unique){
+            for (const regx_index in dom_filter_unique){
+                var regx_obj   = new RegExp(dom_filter_unique[regx_index], "ig");
+                var regx_match = dom_inputs_unique[line].match(regx_obj);
+                if (regx_match){
+                    results.push(regx_obj + "\t: " + dom_inputs_unique[line]);
+                }
+            }
+        }
+        dom_result.value = "---<" + results.length + ">---\n" + results.join("\n");
+    };
+    
+    function mergeContext(){
+        var baseContext = dom_inputs.value;
+        var baseContextSplit = dom_inputs.value.split("\n");
+        var compContext = dom_filter.value;
+        
+        /*
+        for (line in baseContextSplit){
+            var trim = baseContextSplit[line].trim()
+            if (trim.length <= 0){continue}
+            findIndex = compContext.indexOf(baseContextSplit[line])
+            if (findIndex > 0){
+                results.push(findIndex+": "+baseContextSplit[line]);
+            }else{
+                results.push("Not Found: "+baseContextSplit[line]);
+            };
+        }
+        dom_result.value = results.join("\n");
+        
+        */
+        
+        /*
+        var comResult = [];
+        
+        var start = 0;
+        var end   = 0;
+        var flag = false;
+        
+        for (let index = 0; index < baseContext.length; index++) {
+            if (index >= compContext.length){
+                console.log("MAX:"+baseContext.slice(start,index));
+                return;
+            };
+            if (baseContext[index] == compContext[index]){
+                if (flag == true){
+                    console.log("Com Not Eq:" + baseContext.slice(start,index));
+                    start = 0
+                    flag = false
+                }else{
+                    console.log("EQ:"+baseContext[index]);
+                }
+            }else{
+                if (flag == true){continue};
+                start = index
+                flag = true
+            };
+        };
+        if (flag == true && start != 0){
+            console.log("Com Not Eq:"+baseContext.slice(start,compContext.length));
+            //comResult.push("Com Not Eq:"+baseContext.slice(start,compContext.length));
+        }
+        
+        dom_result.value = "---------差集---------\n"+comResult.join("\n")
+        */
+        
+    };
+</script>
+
+<script>
+function BASE64() {
+
+    // private property
+    _keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+
+    // public method for encoding
+    this.encode = function (input) {
+        var output = "";
+        var chr1, chr2, chr3, enc1, enc2, enc3, enc4;
+        var i = 0;
+        input = _utf8_encode(input);
+        while (i < input.length) {
+            chr1 = input.charCodeAt(i++);
+            chr2 = input.charCodeAt(i++);
+            chr3 = input.charCodeAt(i++);
+            enc1 = chr1 >> 2;
+            enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
+            enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
+            enc4 = chr3 & 63;
+            if (isNaN(chr2)) {
+                enc3 = enc4 = 64;
+            } else if (isNaN(chr3)) {
+                enc4 = 64;
+            }
+            output = output +
+                _keyStr.charAt(enc1) + _keyStr.charAt(enc2) +
+                _keyStr.charAt(enc3) + _keyStr.charAt(enc4);
+        }
+        return output;
+    }
+
+    // public method for decoding
+    this.decode = function (input) {
+        var output = "";
+        var chr1, chr2, chr3;
+        var enc1, enc2, enc3, enc4;
+        var i = 0;
+        input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+        while (i < input.length) {
+            enc1 = _keyStr.indexOf(input.charAt(i++));
+            enc2 = _keyStr.indexOf(input.charAt(i++));
+            enc3 = _keyStr.indexOf(input.charAt(i++));
+            enc4 = _keyStr.indexOf(input.charAt(i++));
+            chr1 = (enc1 << 2) | (enc2 >> 4);
+            chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+            chr3 = ((enc3 & 3) << 6) | enc4;
+            output = output + String.fromCharCode(chr1);
+            if (enc3 != 64) {
+                output = output + String.fromCharCode(chr2);
+            }
+            if (enc4 != 64) {
+                output = output + String.fromCharCode(chr3);
+            }
+        }
+        output = _utf8_decode(output);
+        return output;
+    }
+
+    // private method for UTF-8 encoding
+    _utf8_encode = function (string) {
+        string = string.replace(/\r\n/g, "\n");
+        var utftext = "";
+        for (var n = 0; n < string.length; n++) {
+            var c = string.charCodeAt(n);
+            if (c < 128) {
+                utftext += String.fromCharCode(c);
+            } else if ((c > 127) && (c < 2048)) {
+                utftext += String.fromCharCode((c >> 6) | 192);
+                utftext += String.fromCharCode((c & 63) | 128);
+            } else {
+                utftext += String.fromCharCode((c >> 12) | 224);
+                utftext += String.fromCharCode(((c >> 6) & 63) | 128);
+                utftext += String.fromCharCode((c & 63) | 128);
+            }
+
+        }
+        return utftext;
+    }
+
+    // private method for UTF-8 decoding
+    _utf8_decode = function (utftext) {
+        var string = "";
+        var i = 0;
+        var c = c1 = c2 = 0;
+        while (i < utftext.length) {
+            c = utftext.charCodeAt(i);
+            if (c < 128) {
+                string += String.fromCharCode(c);
+                i++;
+            } else if ((c > 191) && (c < 224)) {
+                c2 = utftext.charCodeAt(i + 1);
+                string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+                i += 2;
+            } else {
+                c2 = utftext.charCodeAt(i + 1);
+                c3 = utftext.charCodeAt(i + 2);
+                string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+                i += 3;
+            }
+        }
+        return string;
+    }
+}
+
+
+
+</script>
+
+</html>
